@@ -1,31 +1,53 @@
-import express from "express";
-import { json } from "express";
-import { spawn } from "child_process";
-import path from "path";
+import express from 'express';
+import { spawn } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import bodyParser from 'body-parser';
 
-const __dirname = path.dirname(new URL(import.meta.url).pathname); // Define __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
-const port = process.env.PORT || 5000;
 
-app.use(json());
+// Serve the static frontend files
+app.use(express.static(path.join(__dirname, '../frontend/build')));
 
-// Serve the React app as static files
-app.use(express.static(path.join(__dirname, "frontend/build")));
+app.use(bodyParser.json());
 
-app.post("/api/solve", async (req, res) => {
-  // ... (your solve route logic)
+app.post('/solveNQueens', async (req, res) => {
+    const n = req.body.n;
+
+    const childProcess = spawn('nqueens.exe', [`${n}`], {
+        cwd: __dirname, // Set the current directory as the working directory
+    });
+
+    let outputData = '';
+    let errorData = '';
+
+    childProcess.stdout.on('data', (data) => {
+        outputData += data.toString();
+    });
+
+    childProcess.stderr.on('data', (data) => {
+        errorData += data.toString();
+    });
+
+    childProcess.on('close', (code) => {
+        if (code === 0) {
+            const solutions = outputData.split('\n').filter(Boolean);
+            res.json({ solutions });
+        } else {
+            console.error('C code execution error:', errorData);
+            res.status(500).json({ error: 'Failed to run C code' });
+        }
+    });
 });
 
-app.get("/api/reset", (req, res) => {
-  // ... (your reset route logic)
+// Serve the frontend index.html for all routes
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/build/index.html'));
 });
 
-// Define a catch-all route to serve the React app
-app.get("*", (req, res) => {
-  res.sendFile(path.resolve(__dirname, "frontend/build/index.html"));
-});
-
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+app.listen(5000, '0.0.0.0', () => {
+    console.log(`Server is running on port 5000`);
 });
